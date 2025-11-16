@@ -56,12 +56,29 @@ class MessageComposerViewModel: ObservableObject {
     private let keychain = KeychainService.shared
     private let storage = AppGroupStorage.shared
 
+    /// Message delivery manager for handling sends
+    let deliveryManager: MessageDeliveryManager
+
     // MARK: - Initialization
 
-    init(api: VestaboardAPI = VestaboardAPI()) {
+    init(
+        api: VestaboardAPI = VestaboardAPI(),
+        deliveryManager: MessageDeliveryManager? = nil
+    ) {
         self.api = api
+        self.deliveryManager = deliveryManager ?? MessageDeliveryManager(api: api)
+
         loadHistory()
         loadTemplates()
+
+        // Set up delivery manager delegate
+        setupDeliveryManagerDelegate()
+    }
+
+    /// Sets up the delivery manager delegate for receiving delivery events
+    private func setupDeliveryManagerDelegate() {
+        // The delegate will be set up when needed
+        // For now, we observe the delivery manager's published properties
     }
 
     // MARK: - Computed Properties
@@ -109,48 +126,37 @@ class MessageComposerViewModel: ObservableObject {
         isValid = unsupported.isEmpty
     }
 
-    /// Posts the current message to Vestaboard
+    /// Posts the current message to Vestaboard using the delivery manager
+    /// Messages are queued and sent with retry logic and conflict detection
     func postMessage() async {
         guard isValid else {
             errorMessage = "Please fix validation errors before sending"
             return
         }
 
-        do {
-            // Get credentials
-            let config = try keychain.retrieve()
+        // Update state
+        isPosting = true
+        errorMessage = nil
+        successMessage = nil
 
-            // Update state
-            isPosting = true
-            errorMessage = nil
-            successMessage = nil
+        // Queue message for delivery
+        let result = await deliveryManager.sendMessage(messageText)
 
-            // Post message
-            try await api.postMessage(
-                text: messageText,
-                apiKey: config.apiKey,
-                apiSecret: config.apiSecret
-            )
+        switch result {
+        case .success:
+            // Message queued successfully
+            successMessage = "Message queued for delivery"
 
-            // Save to history
-            var message = VestaboardMessage(text: messageText, status: .sent)
-            message.markAsSent()
-            try storage.addToHistory(message)
+            // Clear input
+            let sentText = messageText
+            messageText = ""
 
-            // Fetch updated content for widgets
-            let content = try await api.getCurrentMessage(
-                apiKey: config.apiKey,
-                apiSecret: config.apiSecret
-            )
-            try storage.saveContent(content)
-
-            // Update widgets
-            WidgetCenter.shared.reloadAllTimelines()
-
-            // Update UI
-            successMessage = AppConstants.SuccessMessages.messageSent
-            messageText = ""  // Clear input
-            loadHistory()  // Refresh history
+            // The delivery manager will handle:
+            // - Posting to API
+            // - Retry logic
+            // - Conflict detection
+            // - Widget updates
+            // - History saving
 
             // Haptic feedback
             #if os(iOS)
@@ -158,7 +164,13 @@ class MessageComposerViewModel: ObservableObject {
             generator.notificationOccurred(.success)
             #endif
 
-        } catch {
+            // Refresh history after a short delay to show the sent message
+            Task {
+                try? await Task.sleep(seconds: 2)
+                loadHistory()
+            }
+
+        case .failure(let error):
             errorMessage = error.userFriendlyMessage
 
             #if os(iOS)
@@ -192,11 +204,20 @@ class MessageComposerViewModel: ObservableObject {
         messageText = message.text
     }
 
-    /// Resends a failed message
+    /// Resends a failed message using the delivery manager
     /// - Parameter message: Message to resend
     func resendMessage(_ message: VestaboardMessage) async {
-        messageText = message.text
-        await postMessage()
+        // Queue the message for delivery directly
+        let result = await deliveryManager.sendMessage(message)
+
+        switch result {
+        case .success:
+            successMessage = "Message queued for delivery"
+            loadHistory()
+
+        case .failure(let error):
+            errorMessage = error.userFriendlyMessage
+        }
     }
 
     // MARK: - Template Methods

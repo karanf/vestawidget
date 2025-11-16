@@ -39,6 +39,15 @@ struct MessageComposerView: View {
                     messagesSection
                 }
 
+                // Delivery Status Section (NEW)
+                if viewModel.deliveryManager.pendingCount > 0 ||
+                   viewModel.deliveryManager.failedCount > 0 ||
+                   viewModel.deliveryManager.isDelivering {
+                    Section(header: Text("Delivery Status")) {
+                        DeliveryStatusView(deliveryManager: viewModel.deliveryManager)
+                    }
+                }
+
                 // Quick Actions Section
                 quickActionsSection
             }

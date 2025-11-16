@@ -82,6 +82,9 @@ enum AppConstants {
     /// UserDefaults key for widget configuration preferences
     static let widgetConfigKey = "widgetConfig"
 
+    /// UserDefaults key for storing message delivery queue
+    static let messageQueueKey = "messageQueue"
+
     // MARK: - Limits
 
     /// Maximum number of message templates user can save
@@ -95,6 +98,18 @@ enum AppConstants {
 
     /// Base delay for exponential backoff (in seconds)
     static let retryBaseDelay: TimeInterval = 2
+
+    /// Maximum number of messages that can be queued
+    static let maxQueueSize = 50
+
+    /// Maximum age for queued messages (24 hours in seconds)
+    static let maxMessageAge: TimeInterval = 24 * 60 * 60
+
+    /// Interval for checking message queue (10 seconds)
+    static let queueCheckInterval: TimeInterval = 10
+
+    /// Delay between processing consecutive messages (1 second)
+    static let messageProcessingDelay: TimeInterval = 1
 
     // MARK: - URL Schemes
 

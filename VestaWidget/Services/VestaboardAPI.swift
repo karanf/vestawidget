@@ -154,6 +154,98 @@ class VestaboardAPI {
         return true
     }
 
+    /// Posts a message with conflict detection (read-before-write)
+    /// Retrieves current board state before sending to detect conflicts
+    /// - Parameters:
+    ///   - text: Message text to send
+    ///   - apiKey: Vestaboard API Key
+    ///   - apiSecret: Vestaboard API Secret
+    ///   - expectedContent: Expected current content (for conflict detection)
+    /// - Returns: Tuple of (sent successfully, current content before send)
+    /// - Throws: APIError if request fails
+    func postMessageWithConflictCheck(
+        text: String,
+        apiKey: String,
+        apiSecret: String,
+        expectedContent: VestaboardContent? = nil
+    ) async throws -> (success: Bool, currentContent: VestaboardContent) {
+
+        // Read current board state
+        let currentContent = try await getCurrentMessage(
+            apiKey: apiKey,
+            apiSecret: apiSecret
+        )
+
+        // Check for conflict if expected content was provided
+        if let expected = expectedContent, currentContent != expected {
+            // Conflict detected - content changed since last read
+            return (success: false, currentContent: currentContent)
+        }
+
+        // No conflict - proceed with send
+        try await postMessage(text: text, apiKey: apiKey, apiSecret: apiSecret)
+
+        return (success: true, currentContent: currentContent)
+    }
+
+    /// Posts a message with retry logic
+    /// Automatically retries on transient failures with exponential backoff
+    /// - Parameters:
+    ///   - text: Message text to send
+    ///   - apiKey: Vestaboard API Key
+    ///   - apiSecret: Vestaboard API Secret
+    ///   - maxRetries: Maximum number of retry attempts (defaults to 3)
+    /// - Throws: APIError if all retries fail
+    func postMessageWithRetry(
+        text: String,
+        apiKey: String,
+        apiSecret: String,
+        maxRetries: Int = AppConstants.maxRetryAttempts
+    ) async throws {
+        var lastError: Error?
+        var attempt = 0
+
+        while attempt < maxRetries {
+            do {
+                try await postMessage(text: text, apiKey: apiKey, apiSecret: apiSecret)
+                return  // Success
+
+            } catch let error as APIError {
+                lastError = error
+
+                // Check if error is retryable
+                switch error {
+                case .rateLimited, .serverError, .networkError:
+                    // Retryable errors - continue to next attempt
+                    attempt += 1
+
+                    if attempt < maxRetries {
+                        // Calculate exponential backoff delay
+                        let delay = AppConstants.retryBaseDelay * pow(2.0, Double(attempt - 1))
+                        try? await Task.sleep(seconds: delay)
+                    }
+
+                default:
+                    // Non-retryable error - throw immediately
+                    throw error
+                }
+
+            } catch {
+                // Non-API error
+                lastError = error
+                attempt += 1
+
+                if attempt < maxRetries {
+                    let delay = AppConstants.retryBaseDelay * pow(2.0, Double(attempt - 1))
+                    try? await Task.sleep(seconds: delay)
+                }
+            }
+        }
+
+        // All retries exhausted
+        throw lastError ?? APIError.serverError(500)
+    }
+
     // MARK: - Private Methods
 
     /// Executes a POST request to the Vestaboard API

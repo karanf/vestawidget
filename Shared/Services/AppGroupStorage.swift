@@ -138,6 +138,28 @@ class AppGroupStorage {
         userDefaults.synchronize()
     }
 
+    // MARK: - Message Queue (for delivery system)
+
+    /// Saves message queue to shared storage
+    /// - Parameter queue: Array of QueuedMessage objects
+    /// - Throws: Error if encoding or saving fails
+    func saveMessageQueue(_ queue: [QueuedMessage]) throws {
+        try userDefaults.setCodable(queue, forKey: AppConstants.messageQueueKey)
+        userDefaults.synchronize()
+    }
+
+    /// Retrieves message queue from shared storage
+    /// - Returns: Array of queued messages (empty if none exist)
+    func retrieveMessageQueue() -> [QueuedMessage] {
+        return userDefaults.codable([QueuedMessage].self, forKey: AppConstants.messageQueueKey) ?? []
+    }
+
+    /// Clears the message queue
+    func clearMessageQueue() {
+        userDefaults.removeObject(forKey: AppConstants.messageQueueKey)
+        userDefaults.synchronize()
+    }
+
     // MARK: - Last Sync Timestamp
 
     /// Saves the last successful sync timestamp
