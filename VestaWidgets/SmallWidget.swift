@@ -61,7 +61,8 @@ struct SmallVestaWidgetView: View {
                     VestaboardDisplayView(
                         content: content,
                         rowsToShow: 2,
-                        showTimestamp: true
+                        showTimestamp: true,
+                        carouselIndicator: entry.shortCarouselIndicator
                     )
                 }
             } else {

@@ -66,7 +66,8 @@ struct LargeVestaWidgetView: View {
                         VestaboardDisplayView(
                             content: content,
                             rowsToShow: 6,
-                            showTimestamp: true
+                            showTimestamp: true,
+                            carouselIndicator: entry.carouselIndicator
                         )
                     }
                 }

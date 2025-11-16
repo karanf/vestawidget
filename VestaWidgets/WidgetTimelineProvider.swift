@@ -89,6 +89,7 @@ struct VestaWidgetTimelineProvider: TimelineProvider {
     }
 
     /// Generates timeline entries for the next 24 hours
+    /// With carousel support: rotates through recent messages if multiple exist
     /// - Returns: Array of timeline entries
     private func generateTimelineEntries() async -> [VestaWidgetEntry] {
         var entries: [VestaWidgetEntry] = []
@@ -114,15 +115,25 @@ struct VestaWidgetTimelineProvider: TimelineProvider {
             try storage.saveContent(content)
             storage.saveLastSync(Date())
 
-            // Generate entries for next 24 hours (96 entries at 15-minute intervals)
-            for index in 0..<AppConstants.timelineEntryCount {
-                let entryDate = Calendar.current.date(
-                    byAdding: .minute,
-                    value: index * 15,
-                    to: currentDate
-                ) ?? currentDate
+            // Retrieve message history for carousel
+            let history = storage.retrieveHistory()
 
-                entries.append(VestaWidgetEntry.content(content, date: entryDate))
+            // Generate carousel entries if multiple messages exist
+            if history.count > 1, let carousel = MessageCarouselEntry.from(history: history, maxMessages: 10) {
+                // Create rotating carousel entries
+                entries = generateCarouselEntries(carousel: carousel, startDate: currentDate)
+            } else {
+                // Single message or no history - use standard entries
+                // Generate entries for next 24 hours (96 entries at 15-minute intervals)
+                for index in 0..<AppConstants.timelineEntryCount {
+                    let entryDate = Calendar.current.date(
+                        byAdding: .minute,
+                        value: index * 15,
+                        to: currentDate
+                    ) ?? currentDate
+
+                    entries.append(VestaWidgetEntry.content(content, date: entryDate))
+                }
             }
 
         } catch APIError.unauthorized {
@@ -189,6 +200,35 @@ struct VestaWidgetTimelineProvider: TimelineProvider {
         // Ensure we have at least one entry
         if entries.isEmpty {
             entries.append(VestaWidgetEntry.placeholder(date: currentDate))
+        }
+
+        return entries
+    }
+
+    /// Generates carousel timeline entries that rotate through messages
+    /// Creates 96 entries (24 hours) that cycle through the carousel messages
+    /// - Parameters:
+    ///   - carousel: Carousel with messages to rotate through
+    ///   - startDate: Starting date for timeline
+    /// - Returns: Array of carousel timeline entries
+    private func generateCarouselEntries(carousel: MessageCarouselEntry, startDate: Date) -> [VestaWidgetEntry] {
+        var entries: [VestaWidgetEntry] = []
+        let totalMessages = carousel.totalMessages
+
+        // Generate 96 entries (24 hours / 15 minutes)
+        for index in 0..<AppConstants.timelineEntryCount {
+            let entryDate = Calendar.current.date(
+                byAdding: .minute,
+                value: index * 15,
+                to: startDate
+            ) ?? startDate
+
+            // Rotate through messages: each message gets shown multiple times
+            // Example: With 3 messages and 96 entries, each message shows ~32 times
+            let messageIndex = index % totalMessages
+            let carouselAtIndex = carousel.goTo(index: messageIndex)
+
+            entries.append(VestaWidgetEntry.carousel(carouselAtIndex, date: entryDate))
         }
 
         return entries

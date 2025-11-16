@@ -32,6 +32,9 @@ struct VestaWidgetEntry: TimelineEntry {
     /// Optional error message to display if content fetch failed
     let errorMessage: String?
 
+    /// Optional carousel state (when rotating through multiple messages)
+    let carousel: MessageCarouselEntry?
+
     // MARK: - Initialization
 
     /// Creates a new widget timeline entry
@@ -40,16 +43,19 @@ struct VestaWidgetEntry: TimelineEntry {
     ///   - content: Vestaboard content to show
     ///   - isConfigured: Whether app is configured
     ///   - errorMessage: Optional error message
+    ///   - carousel: Optional carousel state for rotating messages
     init(
         date: Date,
         content: VestaboardContent?,
         isConfigured: Bool = false,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        carousel: MessageCarouselEntry? = nil
     ) {
         self.date = date
         self.content = content
         self.isConfigured = isConfigured
         self.errorMessage = errorMessage
+        self.carousel = carousel
     }
 
     // MARK: - Computed Properties
@@ -67,6 +73,21 @@ struct VestaWidgetEntry: TimelineEntry {
     /// Whether this entry has valid content to display
     var hasContent: Bool {
         return content != nil && errorMessage == nil
+    }
+
+    /// Whether this entry has carousel information
+    var hasCarousel: Bool {
+        return carousel != nil && (carousel?.hasMultipleMessages ?? false)
+    }
+
+    /// Carousel indicator text (e.g., "Message 3 of 10")
+    var carouselIndicator: String? {
+        return carousel?.carouselIndicator
+    }
+
+    /// Short carousel indicator (e.g., "3/10")
+    var shortCarouselIndicator: String? {
+        return carousel?.shortCarouselIndicator
     }
 
     // MARK: - Timeline Relevance
@@ -126,7 +147,29 @@ extension VestaWidgetEntry {
             date: date,
             content: content,
             isConfigured: true,
-            errorMessage: nil
+            errorMessage: nil,
+            carousel: nil
+        )
+    }
+
+    /// Creates a carousel entry (rotating through multiple messages)
+    /// - Parameters:
+    ///   - carousel: Carousel state with message collection
+    ///   - date: Display date (defaults to now)
+    /// - Returns: Carousel timeline entry
+    static func carousel(_ carousel: MessageCarouselEntry, date: Date = Date()) -> VestaWidgetEntry {
+        // Convert current message to VestaboardContent for display
+        let content = VestaboardContent(
+            text: carousel.message.text,
+            lastUpdated: carousel.message.sentAt ?? Date()
+        )
+
+        return VestaWidgetEntry(
+            date: date,
+            content: content,
+            isConfigured: true,
+            errorMessage: nil,
+            carousel: carousel
         )
     }
 }
@@ -147,4 +190,7 @@ extension VestaWidgetEntry {
 
     /// Sample error entry
     static let sampleError = VestaWidgetEntry.error("Connection failed")
+
+    /// Sample carousel entry
+    static let sampleCarousel = VestaWidgetEntry.carousel(.sample)
 }

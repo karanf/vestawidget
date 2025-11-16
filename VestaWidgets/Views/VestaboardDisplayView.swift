@@ -24,6 +24,9 @@ struct VestaboardDisplayView: View {
     /// Whether to show the timestamp
     let showTimestamp: Bool
 
+    /// Optional carousel indicator text (e.g., "Message 3 of 10")
+    let carouselIndicator: String?
+
     // MARK: - Initialization
 
     /// Creates a Vestaboard display view
@@ -31,14 +34,17 @@ struct VestaboardDisplayView: View {
     ///   - content: Content to display
     ///   - rowsToShow: Number of rows to show (default: all 6)
     ///   - showTimestamp: Whether to show last update time (default: true)
+    ///   - carouselIndicator: Optional carousel indicator text
     init(
         content: VestaboardContent,
         rowsToShow: Int = 6,
-        showTimestamp: Bool = true
+        showTimestamp: Bool = true,
+        carouselIndicator: String? = nil
     ) {
         self.content = content
         self.rowsToShow = min(rowsToShow, AppConstants.vestaboardRows)
         self.showTimestamp = showTimestamp
+        self.carouselIndicator = carouselIndicator
     }
 
     // MARK: - Body
@@ -75,16 +81,31 @@ struct VestaboardDisplayView: View {
         }
     }
 
-    /// Timestamp display
+    /// Timestamp display with optional carousel indicator
     private var timestampView: some View {
         HStack {
+            // Carousel indicator (if present)
+            if let indicator = carouselIndicator, !indicator.isEmpty {
+                Image(systemName: "arrow.left.arrow.right.circle")
+                    .font(.caption2)
+
+                Text(indicator)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+
+                Spacer()
+            }
+
+            // Timestamp
             Image(systemName: "clock")
                 .font(.caption2)
 
             Text(content.lastUpdated, style: .relative)
                 .font(.caption2)
 
-            Spacer()
+            if carouselIndicator == nil {
+                Spacer()
+            }
         }
         .foregroundColor(.white.opacity(0.7))
     }
